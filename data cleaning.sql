@@ -1,0 +1,123 @@
+CREATE TABLE `layoffs_staging2` (
+  `company` text,
+  `location` text,
+  `industry` text,
+  `total_laid_off` int DEFAULT NULL,
+  `percentage_laid_off` text,
+  `date` text,
+  `stage` text,
+  `country` text,
+  `funds_raised_millions` int DEFAULT NULL,
+  `row_num` int
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+
+insert into layoffs_staging2 
+select *,
+row_number() over(partition by 
+								company,location,industry, total_laid_off,
+                                percentage_laid_off, `date`,stage, country,
+                                funds_raised_millions) row_num
+from layoffs_staging;
+
+
+-----------------------------------
+delete from layoffs_staging2
+where row_num>1;
+---------------------------------
+update layoffs_staging2 set company=trim(company);
+--------------------------------------
+--- select * from layoffs;
+--- create table layoffs_staging like layoffs;
+--- insert layoffs_staging select * from layoffs;
+
+--- update layoffs_staging2 set company=trim(company);
+select  distinct industry from layoffs_staging2 ;
+-- distinct so that same industry aint reepated
+
+update layoffs_staging2 
+set industry='Crypto' 
+where industry like 'Crypto%';
+
+
+select  distinct location from layoffs_staging2 order by 1;
+
+select  distinct country from layoffs_staging2 order by 1;
+
+update layoffs_staging2 set country='United States' where country like '%United States%';
+
+select `date`,str_to_date(`date`,'%m/%d/%Y') from layoffs_staging2;
+-- see we converted string to a format
+-- lets update
+
+
+-- coverted date format
+update layoffs_staging2 
+set `date` = str_to_date(`date`,'%m/%d/%Y');
+
+alter table layoffs_staging2 
+modify column `date` DATE;
+
+
+-- next step null values
+select * 
+from layoffs_staging2 
+where total_laid_off is null 
+and percentage_laid_off is null;
+
+select * 
+from layoffs_staging2
+where industry is null
+or industry='';
+-- maybe saame country has entries with industry given
+
+
+select distinct industry
+from layoffs_staging2
+where company='Airbnb' 
+and industry is not null 
+and industry !='';
+
+-- found airbnb's industry 
+-- do a join to combine them
+select t1.industry,t2.industry from layoffs_staging2 t1 
+join layoffs_staging2 t2
+	on t1.company=t2.company
+	and t1.location=t2.location
+where t1.industry is null 
+	or t1.industry=''
+and t2.industry is not null;
+
+
+-- space to null
+update layoffs_staging2
+set industry = null
+where industry='';
+
+
+
+-- found them lets update
+update layoffs_staging2 t1 
+join layoffs_staging2 t2
+	on t1.company=t2.company
+	and t1.location=t2.location
+set t1.industry=t2.industry
+where t1.industry is null 
+and t2.industry is not null;
+
+
+
+-- remove these useless entries
+delete from layoffs_staging2 
+where total_laid_off is null
+ and percentage_laid_off is null;
+
+
+-- remove row num we dont need it
+alter table layoffs_staging2
+drop column row_num;
+
+-- check 
+select * 
+from layoffs_staging2;
